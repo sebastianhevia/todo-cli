@@ -65,14 +65,14 @@ func (l *List) Get(fileName string) error {
     return json.Unmarshal(file, l)
 }
 
-func (l *List) Delete(i int) error {
-    ls := *l
-    if i <= 0 || i > len(ls) {
-	return fmt.Errorf("item %d does not exist", i)
-    }
-    *l = append(ls[:i-1], ls[i:]...)
-    return nil
-}
+//func (l *List) Delete(i int) error {
+//    ls := *l
+//    if i <= 0 || i > len(ls) {
+//	return fmt.Errorf("item %d does not exist", i)
+//    }
+//    *l = append(ls[:i-1], ls[i:]...)
+//    return nil
+//}
 
 func (l *List) Update(i int, task string) error {
     ls := *l
