@@ -1,97 +1,93 @@
 package todo_test
 
 import (
-    "io/ioutil"
-    "os"
-    "testing"
+	"os"
+	"path/filepath"
+	"testing"
 
-    todo "github.com/sebastianhevia/todo-cli"
+	todo "github.com/sebastianhevia/todo-cli"
 )
 
+// Helper function to create a new List with a temporary database for each test
+func newTestList(t *testing.T) todo.List {
+	t.Helper()
+	dbName := "todo-test.db"
+
+	l, err := todo.NewList(dbName)
+	if err != nil {
+		t.Fatalf("Failed to create new List: %v", err)
+	}
+
+	t.Cleanup(func() {
+		os.RemoveAll(tempDir)
+	})
+
+	return l
+}
+
 func TestAdd(t *testing.T) {
-    l := todo.List{}
+	l := newTestList(t)
 
-    taskName := "New Task"
-    l.Add(taskName)
+	taskName := "New Task"
+	l.Add(taskName)
 
-    if l[0].Task != taskName {
-        t.Errorf("Expected %q, got %q instead", taskName, l[0].Task)
-    }
+	task, err := l.Get(0)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if task.Task != taskName {
+		t.Errorf("Expected %q, got %q instead", taskName, task.Task)
+	}
 }
 
 func TestComplete(t *testing.T) {
-    l := todo.List{}
+	l := newTestList(t)
 
-    taskName := "New Task"
-    l.Add(taskName)
+	taskName := "New Task"
+	l.Add(taskName)
 
-    if l[0].Task != taskName {
-        t.Errorf("Expected %q, got %q instead", taskName, l[0].Task)
-    }
+	task, err := l.Get(0)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
-    if l[0].Done {
-        t.Errorf("New task should not be completed.")
-    }
-    l.Complete(1)
+	if task.Task != taskName {
+		t.Errorf("Expected %q, got %q instead", taskName, task.Task)
+	}
 
-    if !l[0].Done {
-        t.Errorf("New task should be completed.")
-    }
-}
+	if task.Done {
+		t.Errorf("New task should not be completed.")
+	}
+	l.Complete(0)
 
-//func TestDelete(t *testing.T) {
-//    l := todo.List{}
-//    taskName := "New Task"
-//    l.Add(taskName)
-//    l.Delete(1)
-//    if l[0].Task != taskName {
-//        t.Errorf("Expected %q, got %q instead", taskName, l[0].Task)
-//    }
-//}
-
-func TestSaveGet(t *testing.T) {
-    // two list
-    l1 := todo.List{}
-    l2 := todo.List{}
-    taskName := "New Task"
-    // saving task into l1 and loading it into l2 -- error if fails
-    l1.Add(taskName)
-    if l1[0].Task != taskName {
-        t.Errorf("Expected %q, got %q instead.", taskName, l1[0].Task)
-    }
-    tf, err := ioutil.TempFile("", "")
-    if err != nil {
-        t.Fatalf("Error creating temp file: %s", err)
-    }
-    defer os.Remove(tf.Name())
-    if err := l1.Save(tf.Name()); err != nil {
-        t.Fatalf("Error saving list to file: %s", err)
-    }
-    if err := l2.Get(tf.Name()); err != nil {
-        t.Fatalf("Error getting list from file: %s", err)
-    }
-    if l1[0].Task != l2[0].Task {
-        t.Errorf("Task %q should match %q task.", l1[0].Task, l2[0].Task)
-    }
+	if !task.Done {
+		t.Errorf("New task should be completed.")
+	}
 }
 
 func TestUpdate(t *testing.T) {
-    l := todo.List{}
-    taskName := "New Task"
-    l.Add(taskName)
-    l.Update(1, "Updated Task")
-    if l[0].Task != "Updated Task" {
-        t.Errorf("Expected %q, got %q instead", "Updated Task", l[0].Task)
-    }
+	l := newTestList(t)
+	taskName := "New Task"
+	l.Add(taskName)
+	l.Update(0, "Updated Task")
+	task, err := l.Get(0)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if task.Task != "Updated Task" {
+		t.Errorf("Expected %q, got %q instead", "Updated Task", task.Task)
+	}
 }
 
 func TestList(t *testing.T) {
-    l := todo.List{}
-    taskName := "New Task"
-    l.Add(taskName)
-    if l[0].Task != taskName {
-        t.Errorf("Expected %q, got %q instead", taskName, l[0].Task)
-    }
+	l := newTestList(t)
+	taskName := "New Task"
+	l.Add(taskName)
+	task, err := l.Get(0)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if task.Task != taskName {
+		t.Errorf("Expected %q, got %q instead", taskName, task.Task)
+	}
 }
-
-

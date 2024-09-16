@@ -1,57 +1,63 @@
 package main
 
 import (
-    "flag"
-    "fmt"
-    "os"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
 
-    todo "github.com/sebastianhevia/todo-cli"
+	todo "github.com/sebastianhevia/todo-cli"
 )
 
-const todoFileName = ".todo.json"
-
 func main() {
-  task := flag.String("task", "", "Task to be included in the todolist")
-  list := flag.Bool("list", false, "List all tasks")
-  complete := flag.Int("complete", 0, "Item to be completed")
-  flag.Parse()
-  
-  l := &todo.List{}
-  if err := l.Get(todoFileName); err != nil {
-    fmt.Fprintln(os.Stderr, err)
-    os.Exit(1)
-  }
-  switch {
-    case *list:
-        // list current to do items
-        for _, item := range *l {
-            if !item.Done {
-                fmt.Println(item.Task)
-            }
-        }
-    // to verify if complete flag is set with value more than 0 (default)
-    case *complete > 0:
-        if err := l.Complete(*complete); err != nil {
-            fmt.Fprintln(os.Stderr, err)
-            os.Exit(1)
-        }
-        // save the new list
-        if err := l.Save(todoFileName); err != nil {
-            fmt.Fprintln(os.Stderr, err)
-            os.Exit(1)
-        }
-    // verify if task flag is set with different than empty string
-    case *task != "":
-        l.Add(*task)
-        if err := l.Save(todoFileName); err != nil {
-            fmt.Fprintln(os.Stderr, err)
-            os.Exit(1)
-        }
-    default:
-        // print an error msg
-        fmt.Fprintln(os.Stderr, "Invalid option")
-        os.Exit(1)
-  }
+	add := flag.String("add", "", "Add a new task")
+	complete := flag.Int("complete", 0, "Mark a task as completed")
+	list := flag.Bool("list", false, "List all tasks")
+	delete := flag.Int("delete", 0, "Delete a task")
+	update := flag.String("update", "", "Update a task")
+	id := flag.Int("id", 0, "ID of the task to update")
+	flag.Parse()
+
+	dbPath := os.Getenv("TODO_DB_PATH")
+	if dbPath == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to get user home directory:", err)
+			os.Exit(1)
+		}
+		dbPath = filepath.Join(homeDir, ".todo", "todo.db")
+	}
+
+	l, err := todo.New(dbPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	defer l.Close()
+
+	switch {
+	case *add != "":
+		err = l.Add(*add)
+	case *complete > 0:
+		err = l.Complete(*complete)
+	case *list:
+		items, err := l.List()
+		if err == nil {
+			for _, item := range items {
+				fmt.Printf("%d: %s (Done: %t)\n", item.ID, item.Task, item.Done)
+			}
+		}
+	case *delete > 0:
+		err = l.Delete(*delete)
+	case *update != "" && *id > 0:
+		err = l.Update(*id, *update)
+	default:
+		fmt.Fprintln(os.Stderr, "Invalid option")
+		os.Exit(1)
+	}
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
-
-

@@ -1,93 +1,78 @@
 package todo
 
 import (
-    "encoding/json"
-    "errors"
-    "fmt"
-    "io/ioutil"
-    "os"
-    "time"
+	"database/sql"
+	"time"
+
+	database "github.com/sebastianhevia/todo-cli/database"
 )
 
 type item struct {
-    Task        string
-    Done        bool
-    CreatedAt   time.Time
-    CompletedAt time.Time
+	ID          int
+	Task        string
+	Done        bool
+	CreatedAt   time.Time
+	CompletedAt sql.NullTime
 }
 
-type List []item
-
-func (l *List) Add(task string) {
-    t := item{
-        Task:        task,
-        Done:        false,
-        CreatedAt:   time.Now(),
-        CompletedAt: time.Time{},
-    }
-
-    *l = append(*l, t)
+type List struct {
+	db *sql.DB
 }
 
-func (l *List) Complete(i int) error {
-    ls := *l
-    if i <= 0 || i > len(ls) {
-        return fmt.Errorf("item %d does not exist", i)
-    }
-    ls[i-1].Done = true
-    ls[i-1].CompletedAt = time.Now()
-
-    return nil
+func NewList(dbName string) (*List, error) {
+	db, err := database.initDB(dbName)
+	if err != nil {
+		return nil, err
+	}
+	return &List{db: db}, nil
 }
 
-func (l *List) Save(fileName string) error {
-    json, err := json.Marshal(l)
-    if err != nil {
-        return err
-    }
-    return ioutil.WriteFile(fileName, json, 0644)
+func (l *List) Add(task string) error {
+	_, err := l.db.Exec("INSERT INTO todos (task, created_at) VALUES (?, ?)", task, time.Now())
+	return err
 }
 
-func (l *List) Get(fileName string) error {
-    file, err := ioutil.ReadFile(fileName)
-    if err != nil {
-        // if the given file does not exist
-        if errors.Is(err, os.ErrNotExist) {
-            return nil
-        }
-        return err
-    }
-
-    if len(file) == 0 {
-        return nil
-    }
-
-    return json.Unmarshal(file, l)
+func (l *List) Complete(id int) error {
+	_, err := l.db.Exec("UPDATE todos SET done = 1, completed_at = ? WHERE id = ?", time.Now(), id)
+	return err
 }
 
-//func (l *List) Delete(i int) error {
-//    ls := *l
-//    if i <= 0 || i > len(ls) {
-//	return fmt.Errorf("item %d does not exist", i)
-//    }
-//    *l = append(ls[:i-1], ls[i:]...)
-//    return nil
-//}
+func (l *List) List() ([]item, error) {
+	rows, err := l.db.Query("SELECT id, task, done, created_at, completed_at FROM todos")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-func (l *List) Update(i int, task string) error {
-    ls := *l
-    if i <= 0 || i > len(ls) {
-	return fmt.Errorf("item %d does not exist", i)
-    }
-    ls[i-1].Task = task
-    return nil
+	var items []item
+	for rows.Next() {
+		var i item
+		err := rows.Scan(&i.ID, &i.Task, &i.Done, &i.CreatedAt, &i.CompletedAt)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, nil
 }
 
-func (l *List) GetItem(i int) (item, error) {
-    ls := *l
-    if i <= 0 || i > len(ls) {
-	return item{}, fmt.Errorf("item %d does not exist", i)
-    }
-    return ls[i-1], nil
+func (l *List) Update(id int, task string) error {
+	_, err := l.db.Exec("UPDATE todos SET task = ? WHERE id = ?", task, id)
+	return err
 }
 
+func (l *List) Delete(id int) error {
+	_, err := l.db.Exec("DELETE FROM todos WHERE id = ?", id)
+	return err
+}
+
+func (l *List) Close() error {
+	return l.db.Close()
+}
+
+func (l *List) Get(id int) (item, error) {
+	row := l.db.QueryRow("SELECT id, task, done, created_at, completed_at FROM todos WHERE id = ?", id)
+	var i item
+	err := row.Scan(&i.ID, &i.Task, &i.Done, &i.CreatedAt, &i.CompletedAt)
+	return i, err
+}
